@@ -26,7 +26,7 @@ def main():
     hud_font = pygame.font.SysFont(ascii_engine.FONTS, 16, bold=True)
     help_font = pygame.font.SysFont(ascii_engine.FONTS, 14)
     help_surf = help_font.render(
-        "[1-5]Ramps [QWERT]Color [I]Inv [UP/DN]Res [L/R]Brt [SPC]Pause",
+        "[1-5]Ramps [QWERT]Color [D]Edges [I]Inv [UP/DN]Res [L/R]Brt [SPC]Pause",
         True, (150, 150, 150), (20, 20, 20),
     )
 
@@ -34,6 +34,7 @@ def main():
     cols = 120
     brightness = 0
     invert = False
+    edges = True
     ramp_idx = 0
     palette_idx = 0
     paused = False
@@ -51,6 +52,7 @@ def main():
                         running = False
                     elif key == pygame.K_SPACE:  paused = not paused
                     elif key == pygame.K_i:      invert = not invert
+                    elif key == pygame.K_d:      edges = not edges
                     elif key == pygame.K_UP:     cols = min(cols + 10, 300)
                     elif key == pygame.K_DOWN:   cols = max(cols - 10, 30)
                     elif key == pygame.K_RIGHT:  brightness = min(brightness + 10, 100)
@@ -61,7 +63,7 @@ def main():
             if not paused:
                 frame = camera.get_frame(cam)
 
-            indices, rgb = ascii_engine.process_frame(frame, cols, brightness, invert, ramp_idx)
+            indices, rgb = ascii_engine.process_frame(frame, cols, brightness, invert, ramp_idx, edges)
             rows = indices.shape[0]
             cw, ch = ascii_engine.cell_size(rows, cols, WINDOW_W, WINDOW_H)
             atlas = ascii_engine.build_atlas(ramp_idx, cw, ch)
@@ -78,7 +80,7 @@ def main():
             screen.blit(crt_overlay, (0, 0))
 
             # HUD
-            hud_str = f"FPS:{int(clock.get_fps()):2d} | GRID:{cols}x{rows} | RAMP:{RAMPS[ramp_idx]['name']} | MODE:{palette['name']}"
+            hud_str = f"FPS:{int(clock.get_fps()):2d} | GRID:{cols}x{rows} | RAMP:{RAMPS[ramp_idx]['name']} | MODE:{palette['name']} | EDGES:{'ON' if edges else 'OFF'}"
             screen.blit(hud_font.render(hud_str, True, (255, 255, 255), (20, 20, 20)), (15, 15))
             screen.blit(help_surf, (15, WINDOW_H - 35))
 
