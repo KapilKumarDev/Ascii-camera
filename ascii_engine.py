@@ -59,6 +59,11 @@ def autolevel(frame):
     return cv2.convertScaleAbs(frame, alpha=gain, beta=-lo * gain)
 
 
+def grid_rows(h, w, cols):
+    """Grid rows for a w x h frame at `cols` columns, corrected for glyph aspect."""
+    return max(1, int(h / w * cols * CHAR_ASPECT))
+
+
 def process_frame(frame, cols, brightness, invert, ramp_idx, edges):
     """
     Downsamples a BGR frame to a grid of char indices. Edge cells (if enabled) use
@@ -67,7 +72,7 @@ def process_frame(frame, cols, brightness, invert, ramp_idx, edges):
     """
     frame = autolevel(frame)
     h, w = frame.shape[:2]
-    rows = max(1, int(h / w * cols * CHAR_ASPECT))
+    rows = grid_rows(h, w, cols)
     resized = cv2.resize(frame, (cols, rows), interpolation=cv2.INTER_AREA)
 
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY).astype(np.float32)
@@ -120,3 +125,10 @@ def compose(indices, rgb, atlas, bg, fg):
     bg = np.array(bg, np.float32)
     img = bg + (color - bg) * atlas[indices][..., None]  # rows, cols, ch, cw, 3
     return img.astype(np.uint8).transpose(0, 2, 1, 3, 4).reshape(rows * ch, cols * cw, 3)
+
+
+def render_frame(frame, cols, brightness, invert, ramp_idx, edges, palette, win_w, win_h):
+    """Whole pipeline: BGR frame -> RGB image of ASCII art that fits win_w x win_h."""
+    indices, rgb = process_frame(frame, cols, brightness, invert, ramp_idx, edges)
+    cw, ch = cell_size(indices.shape[0], cols, win_w, win_h)
+    return compose(indices, rgb, build_atlas(ramp_idx, cw, ch), palette["bg"], palette["fg"])

@@ -19,6 +19,7 @@ def init_camera(camera_index=0, width=1280, height=720):
             use_fallback = True
 
     return {
+        "kind": "camera",
         "cap": cap,
         "use_fallback": use_fallback,
         "start_time": time.time(),
@@ -26,8 +27,43 @@ def init_camera(camera_index=0, width=1280, height=720):
         "height": height
     }
 
+def open_file(path):
+    """Opens an image or video file as a frame source. Returns None if OpenCV can't read it."""
+    image = cv2.imread(path)
+    if image is not None:
+        return {"kind": "image", "path": path, "frame": image}
+
+    cap = cv2.VideoCapture(path)
+    ret, frame = cap.read()
+    if not ret:
+        print(f"Warning: Can't read {path} as an image or video.")
+        cap.release()
+        return None
+    return {
+        "kind": "video", "path": path, "cap": cap, "frame": frame,
+        "fps": cap.get(cv2.CAP_PROP_FPS) or 30, "next": time.time(),
+    }
+
+def _video_frame(cam):
+    """Advances the video at its own fps (not the render loop's) and loops at the end."""
+    now = time.time()
+    if now >= cam["next"]:
+        ret, frame = cam["cap"].read()
+        if not ret:
+            cam["cap"].set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, frame = cam["cap"].read()
+        if ret:
+            cam["frame"] = frame
+        cam["next"] = max(cam["next"] + 1 / cam["fps"], now)
+    return cam["frame"]
+
 def get_frame(cam):
-    """Returns a BGR frame from the camera, or a synthetic pattern as fallback."""
+    """Returns a BGR frame from the active source (camera, image, video), or a synthetic pattern as camera fallback."""
+    if cam["kind"] == "image":
+        return cam["frame"]
+    if cam["kind"] == "video":
+        return _video_frame(cam)
+
     if not cam["use_fallback"]:
         ret, frame = cam["cap"].read()
         if ret:
@@ -63,7 +99,7 @@ def _synthetic_pattern(cam):
     return frame
 
 def release_camera(cam):
-    """Releases the OpenCV capture device."""
-    cap = cam["cap"]
+    """Releases the OpenCV capture device (images have none)."""
+    cap = cam.get("cap")
     if cap and cap.isOpened():
         cap.release()

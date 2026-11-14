@@ -7,6 +7,8 @@ A Python application that transforms your live webcam feed into an interactive A
 ## 🌟 Features
 
 - 🎥 **Live Camera Feed & Fallback Demo**: Connects to your webcam via OpenCV. If no camera is available, an animated synthetic test pattern plays automatically.
+- 📂 **Import Image / Video**: Drop a file onto the window (or run `python main.py <file>`) to view it as ASCII art. Videos play at their own frame rate and loop. Press `C` to go back to the camera.
+- 💾 **Export**: Press `S` to save the output with the current settings: a PNG for the camera or an image, the whole video as an MP4 (no audio) for a video.
 - 🔤 **Multiple Character Ramps**: Switch between **Classic ASCII**, **Extended**, **Matrix Digital**, **Block Shades**, and **Binary (0/1)**.
 - 🎨 **Real-Time Color Palettes**:
   - 🟢 **Matrix Green**: Hacker-style phosphor CRT.
@@ -41,7 +43,8 @@ $$\text{Rows} = \left\lfloor \text{Cols} \times \frac{\text{Frame Height}}{\text
 1. Downscale to 4 pixels per cell column (keeping the source aspect ratio), grayscale, blur.
 2. Canny with thresholds from Otsu's method: $\text{high} = 2 \times T_{\text{Otsu}}$, $\text{low} = \text{high} / 2$.
 3. Sobel gradients $G_x, G_y$ at edge pixels give each cell a dominant gradient angle via the structure tensor:
-   $$\theta = \tfrac{1}{2}\,\operatorname{atan2}\left(2\sum G_xG_y,\ \sum G_x^2 - \sum G_y^2\right)$$
+   $$\theta = \tfrac{1}{2}\,\text{atan2}\left(2\sum G_xG_y,\ \sum G_x^2 - \sum G_y^2\right)
+   $$
 4. The edge runs perpendicular to the gradient. $\theta$ is snapped to 0°, 45°, 90°, 135° and shown as `|`, `/`, `-`, `\`.
 5. A cell counts as an edge only if its edge pixels cover at least one pixel per cell row.
 
@@ -56,8 +59,11 @@ $$\text{Rows} = \left\lfloor \text{Cols} \times \frac{\text{Frame Height}}{\text
 ### Quick Setup:
 ```bash
 pip install -r requirements.txt
-python main.py
+python main.py              # webcam (or demo pattern)
+python main.py photo.jpg    # or open an image / video file
 ```
+
+Exports are written to the current directory as `<name>_ascii_<timestamp>.png` / `.mp4`. Hold `ESC` during a video export to cancel it.
 
 ---
 
@@ -65,7 +71,8 @@ python main.py
 
 ```
 ├── main.py             # Pygame loop, keyboard controls, HUD
-├── camera.py           # OpenCV webcam handler & animated demo fallback
+├── camera.py           # Frame sources: OpenCV webcam, animated demo fallback, image/video files
+├── export.py           # Save current output as PNG, or render a whole video to MP4
 ├── ascii_engine.py     # Character ramps, luminance + edge detection, glyph atlas, vectorized grid render
 ├── filters.py          # Color palette definitions
 ├── tests/              # Self-check: python -m tests.test_ascii_engine
@@ -86,4 +93,7 @@ python main.py
 | `UP` / `DOWN` | Increase / Decrease Grid Resolution (±10) |
 | `LEFT` / `RIGHT` | Decrease / Increase Brightness |
 | `SPACE` | Pause / Resume Video Stream |
+| `S` | Save output (PNG, or MP4 for an imported video) |
+| `C` | Back to the camera after importing a file |
+| Drop a file | Import an image or video |
 | `ESC` | Quit Application |

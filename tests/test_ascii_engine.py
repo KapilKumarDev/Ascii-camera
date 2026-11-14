@@ -1,12 +1,17 @@
 """Run from project root: python -m tests.test_ascii_engine"""
 import os
+import tempfile
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
+import cv2
 import numpy as np
 import pygame
 
 import ascii_engine as ae
+import camera
+import export
+from filters import PALETTES
 
 pygame.font.init()
 white = np.full((72, 128, 3), 255, np.uint8)
@@ -61,5 +66,40 @@ assert (ae.autolevel(white) == white).all()
 for i, ramp in enumerate(ae.RAMPS):
     ink = ae.build_atlas(i, 10, 18)[: len(ramp["chars"])].mean((1, 2))
     assert (np.diff(ink) >= 0).all() and ink[0] == 0, ramp["name"]
+
+# Import/export: image and video files open as sources; save() writes a PNG / an MP4 of the rendered output
+pygame.display.init()  # video export reports progress in the window caption
+
+
+def render(f):
+    return ae.render_frame(f, 40, 0, False, 0, True, PALETTES[0], 320, 180)
+
+
+assert render(dull).shape[0] <= 180 and render(dull).shape[1] <= 320
+
+cwd = os.getcwd()
+with tempfile.TemporaryDirectory() as tmp:
+    os.chdir(tmp)
+
+    cv2.imwrite("pic.png", dull)
+    cam = camera.open_file("pic.png")
+    assert cam["kind"] == "image" and camera.get_frame(cam).shape == dull.shape
+    png = export.save(cam, camera.get_frame(cam), render).removeprefix("Saved ")
+    assert cv2.imread(png).shape == render(dull).shape
+
+    writer = cv2.VideoWriter("clip.avi", cv2.VideoWriter_fourcc(*"MJPG"), 10, (128, 72))
+    for k in range(5):
+        writer.write(np.roll(dull, k * 10, axis=1))
+    writer.release()
+    cam = camera.open_file("clip.avi")
+    assert cam["kind"] == "video" and camera.get_frame(cam).shape == dull.shape
+    mp4 = export.save(cam, None, render).removeprefix("Saved ")
+    out = cv2.VideoCapture(mp4)
+    assert int(out.get(cv2.CAP_PROP_FRAME_COUNT)) == 5
+    out.release()
+    camera.release_camera(cam)
+
+    assert camera.open_file("missing.png") is None
+    os.chdir(cwd)
 
 print("ok")

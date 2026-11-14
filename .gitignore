@@ -1,2 +1,5 @@
 *.zip
 __pycache__
+*_ascii_*.png
+*_ascii_*.mp4
+*.png
