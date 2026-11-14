@@ -1,10 +1,14 @@
 import pygame
-import camera
+
 import ascii_engine
+import camera
 from ascii_engine import RAMPS
 from filters import PALETTES
 
 WINDOW_W, WINDOW_H = 1280, 720
+RAMP_KEYS = {pygame.K_1 + i: i for i in range(len(RAMPS))}
+PALETTE_KEYS = dict(zip((pygame.K_q, pygame.K_w, pygame.K_e, pygame.K_r, pygame.K_t), range(len(PALETTES))))
+
 
 def main():
     pygame.init()
@@ -14,14 +18,17 @@ def main():
 
     cam = camera.init_camera(width=WINDOW_W, height=WINDOW_H)
 
-    # Pre-build the CRT scanline overlay once (never changes)
+    # Pre-build static overlays once
     crt_overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
     for y in range(0, WINDOW_H, 3):
         pygame.draw.line(crt_overlay, (0, 0, 0, 70), (0, y), (WINDOW_W, y))
 
-    # Pre-build HUD fonts once
-    hud_font = pygame.font.SysFont("couriernew", 16, bold=True)
-    help_font = pygame.font.SysFont("couriernew", 14)
+    hud_font = pygame.font.SysFont(ascii_engine.FONTS, 16, bold=True)
+    help_font = pygame.font.SysFont(ascii_engine.FONTS, 14)
+    help_surf = help_font.render(
+        "[1-5]Ramps [QWERT]Color [I]Inv [UP/DN]Res [L/R]Brt [SPC]Pause",
+        True, (150, 150, 150), (20, 20, 20),
+    )
 
     # State
     cols = 120
@@ -30,7 +37,7 @@ def main():
     ramp_idx = 0
     palette_idx = 0
     paused = False
-    frame = None
+    frame = camera.get_frame(cam)
 
     try:
         running = True
@@ -39,81 +46,48 @@ def main():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
+                    key = event.key
+                    if key == pygame.K_ESCAPE:
                         running = False
-                    elif event.key == pygame.K_SPACE:  paused = not paused
-                    elif event.key == pygame.K_i:      invert = not invert
-                    elif event.key == pygame.K_UP:     cols = min(cols + 10, 300)
-                    elif event.key == pygame.K_DOWN:   cols = max(cols - 10, 30)
-                    elif event.key == pygame.K_RIGHT:  brightness = min(brightness + 10, 100)
-                    elif event.key == pygame.K_LEFT:   brightness = max(brightness - 10, -100)
-                    elif event.key == pygame.K_1: ramp_idx = 0
-                    elif event.key == pygame.K_2: ramp_idx = 1
-                    elif event.key == pygame.K_3: ramp_idx = 2
-                    elif event.key == pygame.K_4: ramp_idx = 3
-                    elif event.key == pygame.K_5: ramp_idx = 4
-                    elif event.key == pygame.K_q: palette_idx = 0
-                    elif event.key == pygame.K_w: palette_idx = 1
-                    elif event.key == pygame.K_e: palette_idx = 2
-                    elif event.key == pygame.K_r: palette_idx = 3
-                    elif event.key == pygame.K_t: palette_idx = 4
+                    elif key == pygame.K_SPACE:  paused = not paused
+                    elif key == pygame.K_i:      invert = not invert
+                    elif key == pygame.K_UP:     cols = min(cols + 10, 300)
+                    elif key == pygame.K_DOWN:   cols = max(cols - 10, 30)
+                    elif key == pygame.K_RIGHT:  brightness = min(brightness + 10, 100)
+                    elif key == pygame.K_LEFT:   brightness = max(brightness - 10, -100)
+                    elif key in RAMP_KEYS:       ramp_idx = RAMP_KEYS[key]
+                    elif key in PALETTE_KEYS:    palette_idx = PALETTE_KEYS[key]
 
-            # Get camera frame
             if not paused:
-                new_frame = camera.get_frame(cam)
-                if new_frame is not None:
-                    frame = new_frame
+                frame = camera.get_frame(cam)
 
-            if frame is None:
-                continue
-
-            # Convert frame to ASCII
-            indices, rgb_colors, ramp = ascii_engine.process_frame(
-                frame, cols, brightness, invert, ramp_idx
-            )
-
+            indices, rgb = ascii_engine.process_frame(frame, cols, brightness, invert, ramp_idx)
             rows = indices.shape[0]
-            cell_w = WINDOW_W / cols
-            cell_h = WINDOW_H / rows
-            render_font = pygame.font.SysFont("couriernew", max(int(cell_h * 1.1), 8), bold=True)
+            cw, ch = ascii_engine.cell_size(rows, cols, WINDOW_W, WINDOW_H)
+            atlas = ascii_engine.build_atlas(ramp_idx, cw, ch)
 
-            palette = PALETTES[palette_idx % len(PALETTES)]
-            bg_col = palette["bg"]
-            fg_col = palette["fg"]
-            screen.fill(bg_col)
+            palette = PALETTES[palette_idx]
+            img = ascii_engine.compose(indices, rgb, atlas, palette["bg"], palette["fg"])
+            img_h, img_w = img.shape[:2]
 
-            # Render ASCII grid
-            if fg_col is not None:
-                # Single-color mode: render whole rows as strings (fast)
-                for r in range(rows):
-                    row_str = "".join(ramp[indices[r, c]] for c in range(cols))
-                    screen.blit(render_font.render(row_str, False, fg_col), (0, r * cell_h))
-            else:
-                # Full-color mode: render each character with its source pixel color
-                for r in range(rows):
-                    for c in range(cols):
-                        color = tuple(rgb_colors[r, c])
-                        screen.blit(
-                            render_font.render(ramp[indices[r, c]], False, color),
-                            (c * cell_w, r * cell_h)
-                        )
-
-            # CRT scanline effect
+            screen.fill(palette["bg"])
+            screen.blit(
+                pygame.image.frombuffer(img, (img_w, img_h), "RGB"),
+                ((WINDOW_W - img_w) // 2, (WINDOW_H - img_h) // 2),
+            )
             screen.blit(crt_overlay, (0, 0))
 
             # HUD
-            fps = int(clock.get_fps())
-            hud_str = f"FPS:{fps:2d} | GRID:{cols}x{rows} | RAMP:{RAMPS[ramp_idx]['name']} | MODE:{palette['name']}"
+            hud_str = f"FPS:{int(clock.get_fps()):2d} | GRID:{cols}x{rows} | RAMP:{RAMPS[ramp_idx]['name']} | MODE:{palette['name']}"
             screen.blit(hud_font.render(hud_str, True, (255, 255, 255), (20, 20, 20)), (15, 15))
-
-            help_str = "[1-5]Ramps [QWERT]Color [I]Inv [UP/DN]Res [L/R]Brt [SPC]Pause"
-            screen.blit(help_font.render(help_str, True, (150, 150, 150), (20, 20, 20)), (15, WINDOW_H - 35))
+            screen.blit(help_surf, (15, WINDOW_H - 35))
 
             pygame.display.flip()
             clock.tick(60)
     finally:
         camera.release_camera(cam)
         pygame.quit()
+
 
 if __name__ == "__main__":
     main()

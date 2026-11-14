@@ -40,12 +40,11 @@ def _synthetic_pattern(cam):
     t = time.time() - cam["start_time"]
     w, h = cam["width"], cam["height"]
 
-    frame = np.zeros((h, w, 3), dtype=np.uint8)
-    X, Y = np.meshgrid(np.arange(w), np.arange(h))
+    # Each wave depends on one axis only, so keep them 1-D and let numpy broadcast
+    wave1 = np.sin(np.arange(w) * 0.01 + t * 2) * 50 + 128
+    wave2 = np.cos(np.arange(h)[:, None] * 0.02 - t * 3) * 50 + 128
 
-    wave1 = np.sin(X * 0.01 + t * 2) * 50 + 128
-    wave2 = np.cos(Y * 0.02 - t * 3) * 50 + 128
-
+    frame = np.empty((h, w, 3), dtype=np.uint8)
     frame[:, :, 0] = np.clip(wave1 * 0.6 + wave2 * 0.4, 0, 255)
     frame[:, :, 1] = np.clip(np.sin(t * 0.5) * 127 + 128, 0, 255)
     frame[:, :, 2] = np.clip(wave2, 0, 255)

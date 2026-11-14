@@ -23,20 +23,20 @@ A Python application that transforms your live webcam feed into an interactive A
 
 ### Aspect Ratio Correction & Downscaling
 Monospaced font characters are taller than wide (aspect ratio ≈ 0.55). To prevent stretching:
-$$\text{Rows} = \text{round}\left( \text{Cols} \times \frac{\text{Frame Height}}{\text{Frame Width}} \times 0.55 \right)$$
+$$\text{Rows} = \left\lfloor \text{Cols} \times \frac{\text{Frame Height}}{\text{Frame Width}} \times 0.55 \right\rfloor$$
 
 ### Vectorized Luminance Mapping
 1. Brightness adjustment:
    $$L_{\text{adjusted}} = \text{clip}(L + \text{brightness}, 0, 255)$$
 2. Character index lookup (vectorized with NumPy):
-   $$\text{Index} = \left\lfloor \frac{L_{\text{adjusted}}}{255} \times (\text{Ramp Length} - 1) \right\rfloor$$
+   $$\text{Index} = \left\lfloor \frac{L_{\text{adjusted}}}{256} \times \text{Ramp Length} \right\rfloor$$
 
 ---
 
 ## 🛠️ Installation
 
 ### Requirements:
-- Python 3.8+
+- Python 3.10+
 - Dependencies: `opencv-python`, `numpy`, `pygame-ce`
 
 ### Quick Setup:
@@ -50,10 +50,11 @@ python main.py
 ## 🧩 File Structure
 
 ```
-├── main.py             # Pygame render loop, keyboard controls, HUD
+├── main.py             # Pygame loop, keyboard controls, HUD
 ├── camera.py           # OpenCV webcam handler & animated demo fallback
-├── ascii_engine.py     # Luminance math, character ramps, frame-to-ASCII conversion
+├── ascii_engine.py     # Character ramps, luminance math, glyph atlas, vectorized grid render
 ├── filters.py          # Color palette definitions
+├── tests/              # Self-check: python -m tests.test_ascii_engine
 ├── requirements.txt    # Python dependencies
 └── README.md           # Documentation
 ```
@@ -65,9 +66,9 @@ python main.py
 | Key | Function |
 | :--- | :--- |
 | `1` - `5` | Switch Character Ramp (Classic, Extended, Matrix, Blocks, Binary) |
-| `F1` - `F5` | Switch Color Palette (Matrix Green, Cyber Neon, Amber, Monochrome, Full RGB) |
+| `Q` `W` `E` `R` `T` | Switch Color Palette (Matrix Green, Cyber Neon, Amber, Monochrome, Full RGB) |
 | `I` | Toggle Invert Luminance |
 | `UP` / `DOWN` | Increase / Decrease Grid Resolution (±10) |
 | `LEFT` / `RIGHT` | Decrease / Increase Brightness |
 | `SPACE` | Pause / Resume Video Stream |
-| `ESC` / `Q` | Quit Application |
+| `ESC` | Quit Application |
