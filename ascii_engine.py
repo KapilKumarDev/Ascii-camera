@@ -9,8 +9,9 @@ FONTS = "dejavusansmono,couriernew,menlo,consolas,monospace"
 EDGE_CHARS = "|/-\\"  # indexed by edge angle: 0, 45, 90, 135 degrees
 EDGE_OVERSAMPLE = 4  # edge-detector pixels per cell column
 EDGE_STRENGTH = 2  # scales the Canny thresholds; higher = only stronger edges
+MIN_SPAN = 32  # brightness spread below this is a flat frame, not a dull one: leave it alone
 
-# Character ramps ordered from dark to bright
+# Character sets per ramp; build_atlas orders them by measured ink, so listed order is free
 RAMPS = [
     {"name": "CLASSIC", "chars": " .:-=+*#%@"},
     {"name": "EXTENDED", "chars": " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"},
@@ -49,12 +50,22 @@ def detect_edges(frame, cols, rows):
     return pool(edge) >= rows / h, direction
 
 
+def autolevel(frame):
+    """Stretch the 2nd..98th brightness percentile to 0..255 so dull webcam frames use the whole ramp."""
+    lo, hi = np.percentile(cv2.resize(frame, (64, 36), interpolation=cv2.INTER_AREA), (2, 98))
+    if hi - lo < MIN_SPAN:
+        return frame
+    gain = 255 / (hi - lo)
+    return cv2.convertScaleAbs(frame, alpha=gain, beta=-lo * gain)
+
+
 def process_frame(frame, cols, brightness, invert, ramp_idx, edges):
     """
     Downsamples a BGR frame to a grid of char indices. Edge cells (if enabled) use
     EDGE_CHARS, which sit right after the ramp in the glyph atlas.
     Returns (indices, rgb_colors), both shaped (rows, cols[, 3]).
     """
+    frame = autolevel(frame)
     h, w = frame.shape[:2]
     rows = max(1, int(h / w * cols * CHAR_ASPECT))
     resized = cv2.resize(frame, (cols, rows), interpolation=cv2.INTER_AREA)
@@ -83,13 +94,22 @@ def cell_size(rows, cols, win_w, win_h):
 
 @lru_cache(maxsize=8)
 def build_atlas(ramp_idx, cw, ch):
-    """Glyph coverage masks (ramp + edge chars, ch, cw) in 0..1. Needs pygame.font initialised."""
+    """
+    Glyph coverage masks (ramp + edge chars, ch, cw) in 0..1. Needs pygame.font initialised.
+    Ramp rows are ordered by measured ink, not by guess: level k gets the glyph whose ink is closest
+    to the k-th of n evenly spaced targets, so brightness maps to darkness linearly in any font.
+    """
     font = pygame.font.SysFont(FONTS, ch * 2)  # render big, scale down: crisper
     glyphs = []
     for c in RAMPS[ramp_idx]["chars"] + EDGE_CHARS:
         glyph = pygame.transform.smoothscale(font.render(c, True, "white"), (cw, ch))
         glyphs.append(pygame.surfarray.array_alpha(glyph).T)
-    return np.stack(glyphs).astype(np.float32) / 255
+    atlas = np.stack(glyphs).astype(np.float32) / 255
+    n = len(RAMPS[ramp_idx]["chars"])
+    ink = atlas[:n].mean((1, 2))
+    target = np.linspace(ink.min(), ink.max(), n)
+    atlas[:n] = atlas[:n][np.abs(ink - target[:, None]).argmin(1)]
+    return atlas
 
 
 def compose(indices, rgb, atlas, bg, fg):

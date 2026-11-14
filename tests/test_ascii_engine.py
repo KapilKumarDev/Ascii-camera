@@ -50,4 +50,16 @@ indices, _ = ae.process_frame(frame, 80, 0, False, 0, True)
 n = len(ae.RAMPS[0]["chars"])
 assert indices.max() >= n and indices.max() < n + len(ae.EDGE_CHARS)
 assert ae.build_atlas(0, 4, 7).shape[0] == n + len(ae.EDGE_CHARS)
+
+# Dull frame (grey 100..160 only) must still span the whole ramp, flat frame must not be stretched
+dull = np.tile(np.linspace(100, 160, 128).astype(np.uint8)[None, :, None], (72, 1, 3))
+idx = ae.process_frame(dull, 10, 0, False, 0, False)[0]
+assert idx.min() == 0 and idx.max() == len(ae.RAMPS[0]["chars"]) - 1
+assert (ae.autolevel(white) == white).all()
+
+# Ramp rows are ordered by measured ink in every ramp: brighter level never has less ink, level 0 is blank
+for i, ramp in enumerate(ae.RAMPS):
+    ink = ae.build_atlas(i, 10, 18)[: len(ramp["chars"])].mean((1, 2))
+    assert (np.diff(ink) >= 0).all() and ink[0] == 0, ramp["name"]
+
 print("ok")

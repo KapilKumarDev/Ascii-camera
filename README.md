@@ -27,10 +27,15 @@ Monospaced font characters are taller than wide (aspect ratio ≈ 0.55). To prev
 $$\text{Rows} = \left\lfloor \text{Cols} \times \frac{\text{Frame Height}}{\text{Frame Width}} \times 0.55 \right\rfloor$$
 
 ### Vectorized Luminance Mapping
-1. Brightness adjustment:
-   $$L_{\text{adjusted}} = \text{clip}(L + \text{brightness}, 0, 255)$$
-2. Character index lookup (vectorized with NumPy):
+1. Auto-levels: webcam frames are often dull, so the 2nd to 98th brightness percentiles ($p_2$, $p_{98}$) are stretched to the full range (skipped if $p_{98} - p_2 < 32$, i.e. a flat frame). This keeps the whole ramp in use and keeps edge detection working in low light:
+   $$L' = \text{clip}\left(\frac{L - p_2}{p_{98} - p_2} \times 255,\ 0,\ 255\right)$$
+2. Brightness adjustment:
+   $$L_{\text{adjusted}} = \text{clip}(L' + \text{brightness}, 0, 255)$$
+3. Character index lookup (vectorized with NumPy):
    $$\text{Index} = \left\lfloor \frac{L_{\text{adjusted}}}{256} \times \text{Ramp Length} \right\rfloor$$
+4. The glyph behind each index is chosen by measured ink, not by the order the characters are listed. Each glyph is rendered, its mean coverage $a_g$ is measured, and level $k$ of $n$ takes the glyph closest to the $k$-th evenly spaced target:
+   $$g_k = \arg\min_g \left| a_g - \left(a_{\min} + \tfrac{k}{n-1}(a_{\max} - a_{\min})\right) \right|$$
+   So brightness maps linearly to ink in any font, and every ramp (even `MATRIX` or `BINARY`) reads as a smooth gradient.
 
 ### Edge Detection
 1. Downscale to 4 pixels per cell column (keeping the source aspect ratio), grayscale, blur.
