@@ -25,11 +25,21 @@ python ascii_video.py clip.mp4 160 # video file (loops), 160 columns
 
 | Key | Action |
 |-----|--------|
-| `1`-`4` | character ramp (10 / 70 / 6 / 2 chars) |
-| `z` `x` `c` | white / green / amber |
-| `v` | colour from source video |
+| `1`-`5` | character ramp: 1 = 10 chars, 2 = 69 chars, 3 = 6 chars, 4 = blocks `█▓▒░`, 5 = 2 chars |
+| `q` `w` `e` | white / green / amber text on black |
+| `r` | real colour (text takes the video's colour) |
+| `c` | contrast boost (CLAHE + stretch to full brightness range), on at start |
+| `[` `]` | less / more stability (hold threshold, step 2, 0 = off, starts at 10) |
 | `i` | invert |
-| `q` | quit |
+| `Esc` | quit |
+
+## Colours
+
+Colour schemes live in the `COLORS` dict in `ascii_video.py`. Each key maps to
+`{"fg": ..., "bg": ...}`: `fg` is the text colour, `bg` the colour behind it.
+`bg` can be left out and then defaults to black. A colour is a BGR tuple, or
+`None` to take it from the video. To add a scheme, add a line, for example
+`"t": {"fg": (0, 255, 0), "bg": (60, 0, 0)}`.
 
 ## Test
 
